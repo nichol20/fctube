@@ -4,5 +4,5 @@ import "github.com/nichol20/fctube/internal/converter"
 
 func main() {
 	vc := converter.NewVideoConverter()
-	vc.Handle([]byte(`{"video_id": 1, "path": "mediatest/media/uploads/1"}`))
+	vc.Handle([]byte(`{"video_id": 1, "path": "/media/uploads/1"}`))
 }
