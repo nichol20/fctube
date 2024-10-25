@@ -8,6 +8,8 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/nichol20/fctube/internal/converter"
+	"github.com/nichol20/fctube/pkg/rabbitmq"
+	"github.com/streadway/amqp"
 )
 
 // connectPostgres establishes a connection with PostgreSQL using environment variables for configuration.
@@ -48,6 +50,30 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	vc := converter.NewVideoConverter(db)
-	vc.Handle([]byte(`{"video_id": 2, "path": "/media/uploads/2"}`))
+	rabbitMQURL := getEnvOrDefault("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+	rabbitClient, err := rabbitmq.NewRabbitClient(rabbitMQURL)
+	if err != nil {
+		panic(err)
+	}
+	defer rabbitClient.Close()
+
+	conversionExch := getEnvOrDefault("CONVERSION_EXCHANGE", "conversion_exchange")
+	queueName := getEnvOrDefault("QUEUE_NAME", "video_conversion_queue")
+	conversionKey := getEnvOrDefault("CONVERSION_KEY", "conversion")
+	confirmationKey := getEnvOrDefault("CONFIRMATION_KEY", "finish-conversion")
+	// rootPath := getEnvOrDefault("VIDEO_ROOT_PATH", "/media/uploads")
+	confirmationQueue := "video_confirmation_queue"
+
+	vc := converter.NewVideoConverter(rabbitClient, db)
+
+	msgs, err := rabbitClient.ConsumeMessages(conversionExch, conversionKey, queueName)
+	if err != nil {
+		slog.Error("Failed to consume messages", slog.String("error", err.Error()))
+	}
+
+	for d := range msgs {
+		go func(delivery amqp.Delivery) {
+			vc.Handle(delivery, conversionExch, confirmationKey, confirmationQueue)
+		}(d)
+	}
 }
