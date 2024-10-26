@@ -41,7 +41,7 @@ func newConnection(url string) (*amqp.Connection, *amqp.Channel, error) {
 }
 
 // NewRabbitClient creates a new RabbitMQ client with the given connection URL
-func NewRabbitClient(connectionURL string) (*RabbitClient, error) {
+func NewRabbitClient(ctx context.Context, connectionURL string) (*RabbitClient, error) {
 	conn, channel, err := newConnection(connectionURL)
 	if err != nil {
 		return nil, err
