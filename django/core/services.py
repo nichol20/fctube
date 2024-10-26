@@ -3,32 +3,40 @@ import os
 import shutil
 from django.db import IntegrityError, transaction
 from core.models import Video, VideoMedia
+from core.rabbitmq import create_rabbitmq_connection
+
 @dataclass
 class VideoService:
     storage: 'Storage'
+
     def get_chunk_directory(self, video_id: int) -> str:
         return f'/tmp/videos/{video_id}'
-    
+
     def find_video(self, video_id: int) -> Video:
         return Video.objects.get(id=video_id)
-    
+
     def process_upload(self, video_id: int, chunk_index: int, chunk: bytes) -> None:
         video = self.find_video(video_id)
         directory = self.get_chunk_directory(video_id)
+
         # Atualiza o status para 'UPLOADED_STARTED' e armazena o chunk
         with transaction.atomic():
             video_media = self.__prepare_video_media(video)
+
             if video_media.status == VideoMedia.Status.PROCESS_STARTED: #upload finalizado
                 raise VideoMediaInvalidStatusException('An upload is already in progress.')
+
             # Se o status já está em 'UPLOADED_STARTED', continua armazenando os chunks
             if video_media.status == VideoMedia.Status.UPLOADED_STARTED:
                 self.storage.storage_chunk(str(video_media.video_path), chunk_index, chunk)
                 return
+
             # Se o processamento já terminou, reinicia o caminho do diretório de chunks
             if video_media.status == VideoMedia.Status.PROCESS_FINISHED:
                 video_media.video_path = directory
                 video.is_published = False
                 video.save()
+
             video_media.status = VideoMedia.Status.UPLOADED_STARTED
             video_media.save()
             self.storage.storage_chunk(str(video_media.video_path), chunk_index, chunk)
@@ -46,7 +54,7 @@ class VideoService:
             except IntegrityError:
                 video_media = VideoMedia.objects.get(video=video)
         return video_media
-    
+
     def finalize_upload(self, video_id: int, total_chunks) -> None:
         video = self.find_video(video_id)
         
@@ -60,7 +68,8 @@ class VideoService:
             
             video_media.status = VideoMedia.Status.PROCESS_STARTED
             video_media.save()
-            # rabbitmq
+
+            self.__produce_message(video_id, video_media.video_path, 'chunks')
             
         except Video.video_media.RelatedObjectDoesNotExist:
             raise VideoMediaNotExistsException('Upload not started.')
@@ -68,6 +77,7 @@ class VideoService:
     def __validate_chunks(self, video_path: str, total_chunks: int) -> bool:
         if not os.path.exists(video_path):
             return False
+
         for i in range(total_chunks):
             chunk_path = os.path.join(video_path, f'{i}.chunk')
             if not os.path.exists(chunk_path):
@@ -80,7 +90,9 @@ class VideoService:
         source_path = self.get_chunk_directory(video_id)
         dest_path = f'/media/uploads/{video_id}'
         self.storage.move_chunks(source_path, dest_path)
-        # rabbitmq
+        self.__produce_message(video_id, dest_path, 'conversion')
+
+
     def register_processed_video_path(self, video_id: int, video_path) -> None:
         video = self.find_video(video_id)
         video_media = video.video_media
@@ -89,17 +101,34 @@ class VideoService:
         video_media.video_path = video_path
         video_media.status = VideoMedia.Status.PROCESS_FINISHED
         video_media.save()
+    
+    def __produce_message(self, video_id: int, path: str, routing_key: str):
+        with create_rabbitmq_connection() as conn:
+            producer = conn.Producer(serializer='json')
+            producer.publish(
+                {
+                    'video_id': video_id,
+                    'path': path
+                }, 
+                exchange='conversion_exchange',
+                routing_key=routing_key
+            )	
 
 def create_video_service_factory() -> VideoService:
     return VideoService(Storage())
+
+
 class VideoMediaInvalidStatusException(Exception):
     pass   
+
 class VideoMediaNotExistsException(Exception):
     pass
+
 class VideoChunkUploadException(Exception):
     pass
-        
+
 class Storage:
+
     def storage_chunk(self, directory: str, chunk_index: int, chunk: bytes) -> None:
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -108,11 +137,15 @@ class Storage:
         
         with open(chunk_path, 'wb') as chunk_file:
             chunk_file.write(chunk)
+
     def move_chunks(self, source_path: str, dest_path: str) -> None:
+
         if not os.path.exists(dest_path):
             os.makedirs(dest_path, exist_ok=True)
+
         for filename in os.listdir(source_path):
             file_path = os.path.join(source_path, filename)
+
             if os.path.isfile(file_path):
                 try:
                     shutil.move(file_path, os.path.join(dest_path, filename))
