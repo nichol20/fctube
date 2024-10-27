@@ -1,8 +1,19 @@
+import { Suspense } from "react";
+import { VideosList } from "../components/VideosList";
+import VideoCardSkeleton from "../components/VideoCardSkeleton";
 
-export default function Home() {
+export default async function Home({searchParams}: {searchParams: {search: string}}) {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      Hello World
-    </div>
+    <main className="container mx-auto px-4 py-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <Suspense
+          fallback={new Array(15).fill(null).map((_, index) => (
+            <VideoCardSkeleton key={index} />
+          ))}
+        >
+          <VideosList search={searchParams.search}/>
+        </Suspense>
+      </div>
+    </main>
   );
 }
