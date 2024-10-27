@@ -22,6 +22,7 @@ export type VideoRecommendListProps = {
 export async function VideosRecommendList(props: VideoRecommendListProps) {
   const { videoId } = props;
   const videos = await getVideosRecommended(videoId);
+
   return videos.length ? (
     videos.map((video) => (
       <Link key={video.id} href={`/${video.slug}/play`} >

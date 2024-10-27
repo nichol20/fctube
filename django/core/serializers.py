@@ -21,7 +21,7 @@ class VideoSerializer(serializers.ModelSerializer):
     
     def get_video_url(self, obj):
         assets_url = settings.ASSETS_URL
-        return f'{assets_url}{obj.video_media.video_path}'
+        return f'{assets_url}/{obj.video_media.video_path}'
     
     class Meta:
         model = Video

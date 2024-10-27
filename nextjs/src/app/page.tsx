@@ -11,7 +11,7 @@ export default async function Home({searchParams}: {searchParams: {search: strin
             <VideoCardSkeleton key={index} />
           ))}
         >
-          <VideosList search={searchParams.search}/>
+          <VideosList search={(await searchParams).search}/>
         </Suspense>
       </div>
     </main>

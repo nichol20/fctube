@@ -1,3 +1,7 @@
+include:
+  - ../postgres/docker-compose.yaml
+  - ../rabbitmq/docker-compose.yaml
+  
 services:
   go_app_dev:
     build:
@@ -12,8 +16,8 @@ services:
       - "8080:8080"
     environment:
       DEBUG: "true"
-      POSTGRES_USER: "user"
-      POSTGRES_PASSWORD: "password"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "root"
       POSTGRES_DB: "converter"
       POSTGRES_HOST: "postgres"
       POSTGRES_SSL_MODE: "disable"
@@ -26,36 +30,6 @@ services:
     depends_on:
       - postgres
       - rabbitmq
-
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: "guest"
-      RABBITMQ_DEFAULT_PASS: "guest"
-
-  postgres:
-    image: postgres:13
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: "user"
-      POSTGRES_PASSWORD: "password"
-      POSTGRES_DB: "converter"
-    volumes:
-      - .docker/postgres:/var/lib/postgresql/data
-
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin4_container
-    restart: always
-    ports:
-      - "8888:80"
-    environment:
-      PGADMIN_DEFAULT_EMAIL: teste@teste.com
-      PGADMIN_DEFAULT_PASSWORD: teste
 
 volumes:
   external-storage:

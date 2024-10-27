@@ -58,9 +58,7 @@ class Video(models.Model):
     def __str__(self):
         return self.title
 
-
 class VideoMedia(models.Model):
-
     class Status(models.TextChoices):
         UPLOADED_STARTED = 'UPLOADED_STARTED', 'Upload Iniciado'
         PROCESS_STARTED = 'PROCESSING_STARTED', 'Processamento Iniciado'

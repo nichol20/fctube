@@ -14,12 +14,13 @@ export default async function VideoPlayPage({
 }: {
   params: { slug: string };
 }) {
-  const video = await getVideo(params.slug);
+  const video = await getVideo((await params).slug);
   after(async () => {
     await fetch(`${process.env.DJANGO_API_URL}/videos/${video.id}/register-view`, {
       method: "POST",
     })
   });
+  
   return (
     <main className="container mx-auto px-4 py-6">
       <div className="flex flex-col md:flex-row gap-4">
